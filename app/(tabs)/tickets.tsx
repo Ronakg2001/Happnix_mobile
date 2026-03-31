@@ -7,21 +7,37 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ticket, Calendar, MapPin, Trash2 } from 'lucide-react-native';
 import { router } from 'expo-router';
-import { eventApi } from '../../services/api';
+import { eventApi, ticketApi } from '../../services/api';
 
 const { width } = Dimensions.get('window');
 
 export default function TicketsScreen() {
   const [activeTab, setActiveTab] = useState<'tickets' | 'events'>('tickets');
   const [myEvents, setMyEvents] = useState<any[]>([]);
+  const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'events') {
       fetchMyEvents();
+    } else {
+      fetchMyTickets();
     }
   }, [activeTab]);
+
+  const fetchMyTickets = async () => {
+    setLoading(true);
+    try {
+      const res = await ticketApi.getAll();
+      setTickets(res.data.tickets || []);
+    } catch (e) {
+      console.error('Failed to fetch tickets:', e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   const fetchMyEvents = async () => {
     setLoading(true);
@@ -61,8 +77,50 @@ export default function TicketsScreen() {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchMyEvents();
-  }, []);
+    if (activeTab === 'events') {
+      fetchMyEvents();
+    } else {
+      fetchMyTickets();
+    }
+  }, [activeTab]);
+
+  const renderTicketItem = (item: any) => (
+    <TouchableOpacity
+      key={item.id}
+      style={styles.ticketCard}
+      activeOpacity={0.8}
+      onPress={() => router.push({ 
+        pathname: `/ticket/${item.id}` as any,
+        params: {
+          title: item.event?.title,
+          passType: item.pass_type,
+          quantity: item.quantity?.toString(),
+          date: item.event?.startAt,
+          imageUrl: item.event?.imageUrl,
+          location: item.event?.locationName,
+          host: item.event?.hostUsername
+        } 
+      })}
+    >
+      <LinearGradient
+        colors={['rgba(124, 58, 237, 0.2)', 'rgba(30, 41, 59, 0.4)']}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={styles.ticketCardInner}
+      >
+        <View style={styles.ticketImageContainer}>
+           <Image source={{ uri: item.event?.imageUrl || 'https://images.unsplash.com/photo-1540039155732-68087448c3a9' }} style={styles.ticketImage} />
+        </View>
+        <View style={styles.ticketBody}>
+           <Text style={styles.ticketTitle} numberOfLines={1}>{item.event?.title || 'Special Event'}</Text>
+           <Text style={styles.ticketPassType}>{item.pass_type} Pass</Text>
+           <Text style={styles.ticketMeta}>Qty x{item.quantity}</Text>
+        </View>
+        <View style={styles.ticketQtyBadge}>
+           <Text style={styles.ticketQtyText}>VIEW</Text>
+        </View>
+      </LinearGradient>
+    </TouchableOpacity>
+  );
 
   const renderEventItem = (event: any) => (
     <TouchableOpacity
@@ -143,19 +201,25 @@ export default function TicketsScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            activeTab === 'events' ? (
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#47e8ff" />
-            ) : undefined
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#47e8ff" />
           }
         >
           {activeTab === 'tickets' ? (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyCircle}>
-                <Ticket color="#9ca3af" size={32} />
+            loading ? (
+              <ActivityIndicator size="large" color="#47e8ff" style={{ marginTop: 40 }} />
+            ) : tickets.length > 0 ? (
+              <View style={styles.eventsList}>
+                {tickets.map(renderTicketItem)}
               </View>
-              <Text style={styles.emptyText}>No passes yet.</Text>
-              <Text style={styles.emptyHint}>Tickets for events you attend will show up here.</Text>
-            </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyCircle}>
+                  <Ticket color="#9ca3af" size={32} />
+                </View>
+                <Text style={styles.emptyText}>No passes yet.</Text>
+                <Text style={styles.emptyHint}>Tickets for events you attend will show up here.</Text>
+              </View>
+            )
           ) : loading ? (
             <ActivityIndicator size="large" color="#47e8ff" style={{ marginTop: 40 }} />
           ) : myEvents.length > 0 ? (
@@ -236,4 +300,15 @@ const styles = StyleSheet.create({
   eventFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
   priceTag: { fontFamily: 'Sora_800ExtraBold', fontSize: 14, color: '#47e8ff' },
   deleteBtn: { padding: 6 },
+
+  ticketCard: { marginBottom: 16, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(124, 58, 237, 0.3)' },
+  ticketCardInner: { flexDirection: 'row', padding: 12, alignItems: 'center' },
+  ticketImageContainer: { width: 60, height: 60, borderRadius: 12, overflow: 'hidden', backgroundColor: 'rgba(0,0,0,0.5)' },
+  ticketImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+  ticketBody: { flex: 1, marginLeft: 16 },
+  ticketTitle: { fontFamily: 'Sora_700Bold', fontSize: 16, color: '#f8f9ff', marginBottom: 4 },
+  ticketPassType: { fontFamily: 'Outfit_800ExtraBold', fontSize: 11, color: '#d946ef', textTransform: 'uppercase', letterSpacing: 1 },
+  ticketMeta: { fontFamily: 'Sora_400Regular', fontSize: 12, color: '#94a3b8', marginTop: 4 },
+  ticketQtyBadge: { backgroundColor: 'rgba(71, 232, 255, 0.1)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: '#47e8ff' },
+  ticketQtyText: { fontFamily: 'Outfit_900Black', color: '#47e8ff', fontSize: 10, letterSpacing: 1 },
 });

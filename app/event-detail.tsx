@@ -1,19 +1,28 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, SafeAreaView,
-  TouchableOpacity, Image, Dimensions, Linking,
+  TouchableOpacity, Image, Dimensions, Linking, Alert, Modal, TextInput,
+  ActivityIndicator, Share, FlatList,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
 import {
   ArrowLeft, MapPin, Calendar, Clock, Users, Ticket,
-  Share2, Heart, BadgeCheck,
+  Share2, Heart, BadgeCheck, ChevronLeft, ChevronRight,
 } from 'lucide-react-native';
+import { ticketApi } from '../services/api';
 
 const { width } = Dimensions.get('window');
 
 export default function EventDetailScreen() {
   const params = useLocalSearchParams();
+
+  const [bookModalVisible, setBookModalVisible] = useState(false);
+  const [quantity, setQuantity] = useState('1');
+  const [passType, setPassType] = useState('General');
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
 
   const event = {
     id: params.id as string,
@@ -34,7 +43,15 @@ export default function EventDetailScreen() {
     ticketsSold: params.ticketsSold as string || '0',
     canBook: params.canBook === 'true',
     mapUrl: params.mapUrl as string || '',
+    ticketType: params.ticketType as string || 'Free',
+    ticketTiers: params.ticketTiers ? JSON.parse(params.ticketTiers as string) : [],
+    mediaUrls: params.mediaUrls ? JSON.parse(params.mediaUrls as string) : [],
   };
+
+  // Build media list: combine mediaUrls + imageUrl fallback
+  const mediaList: string[] = event.mediaUrls.length > 0
+    ? event.mediaUrls
+    : event.imageUrl ? [event.imageUrl] : [];
 
   const isFree = parseFloat(event.price) === 0;
   const formattedDate = event.startAt
@@ -53,6 +70,36 @@ export default function EventDetailScreen() {
     Linking.openURL(url);
   };
 
+  // #22: Native share
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        title: event.title,
+        message: `Check out "${event.title}" on Happnix!\n📍 ${event.locationName}\n📅 ${formattedDate}\n💰 ${isFree ? 'Free' : `${event.currency} ${event.price}`}`,
+      });
+    } catch (e) {}
+  };
+
+  // #19: Tiered ticket selection
+  const hasTicketTiers = event.ticketTiers && event.ticketTiers.length > 0;
+
+  const handleBookTicket = async () => {
+    const qty = parseInt(quantity, 10);
+    if (isNaN(qty) || qty < 1) {
+      return Alert.alert('Invalid Quantity', 'Please enter a valid ticket quantity.');
+    }
+    setBookingLoading(true);
+    try {
+      await ticketApi.book(event.id, passType, qty);
+      Alert.alert('Success', 'Ticket booked successfully!');
+      setBookModalVisible(false);
+    } catch (error: any) {
+      Alert.alert('Booking Error', error.response?.data?.error || 'Failed to book ticket.');
+    } finally {
+      setBookingLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -68,47 +115,60 @@ export default function EventDetailScreen() {
             <ArrowLeft color="#fff" size={22} />
           </TouchableOpacity>
           <View style={styles.headerActions}>
-            <TouchableOpacity style={styles.headerBtn}>
-              <Heart color="#fff" size={22} />
+            <TouchableOpacity style={styles.headerBtn} onPress={() => setLiked(!liked)}>
+              <Heart color={liked ? '#ff4fd8' : '#fff'} fill={liked ? '#ff4fd8' : 'none'} size={22} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.headerBtn}>
+            <TouchableOpacity style={styles.headerBtn} onPress={handleShare}>
               <Share2 color="#fff" size={22} />
             </TouchableOpacity>
           </View>
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {/* Cover Image */}
+          {/* #23: Media Gallery */}
           <View style={styles.coverContainer}>
-            {event.imageUrl ? (
-              <Image source={{ uri: event.imageUrl }} style={styles.coverImage} />
+            {mediaList.length > 0 ? (
+              <>
+                <Image source={{ uri: mediaList[currentMediaIndex] }} style={styles.coverImage} />
+                {mediaList.length > 1 && (
+                  <View style={styles.mediaNav}>
+                    <TouchableOpacity
+                      style={styles.mediaNavBtn}
+                      onPress={() => setCurrentMediaIndex(Math.max(0, currentMediaIndex - 1))}
+                      disabled={currentMediaIndex === 0}
+                    >
+                      <ChevronLeft color="#fff" size={20} />
+                    </TouchableOpacity>
+                    <Text style={styles.mediaCounter}>{currentMediaIndex + 1}/{mediaList.length}</Text>
+                    <TouchableOpacity
+                      style={styles.mediaNavBtn}
+                      onPress={() => setCurrentMediaIndex(Math.min(mediaList.length - 1, currentMediaIndex + 1))}
+                      disabled={currentMediaIndex === mediaList.length - 1}
+                    >
+                      <ChevronRight color="#fff" size={20} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
             ) : (
               <LinearGradient colors={['#7c3aed', '#c026d3', '#22d3ee']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.coverPlaceholder}>
                 <Text style={styles.coverPlaceholderText}>{event.title.charAt(0)}</Text>
               </LinearGradient>
             )}
-            <LinearGradient
-              colors={['transparent', 'rgba(7, 11, 23, 0.95)']}
-              style={styles.coverGradient}
-            />
+            <LinearGradient colors={['transparent', 'rgba(7, 11, 23, 0.95)']} style={styles.coverGradient} />
             <View style={styles.coverBadge}>
-              <Text style={styles.coverBadgeText}>
-                {event.eventCategory.toUpperCase()}
-              </Text>
+              <Text style={styles.coverBadgeText}>{event.eventCategory.toUpperCase()}</Text>
             </View>
           </View>
 
           {/* Content */}
           <View style={styles.content}>
-            {/* Title */}
             <Text style={styles.eventTitle}>{event.title}</Text>
 
             {/* Host */}
             <View style={styles.hostRow}>
               <View style={styles.hostAvatar}>
-                <Text style={styles.hostAvatarText}>
-                  {event.hostUsername.charAt(0).toUpperCase()}
-                </Text>
+                <Text style={styles.hostAvatarText}>{event.hostUsername.charAt(0).toUpperCase()}</Text>
               </View>
               <View>
                 <View style={styles.hostNameRow}>
@@ -136,17 +196,13 @@ export default function EventDetailScreen() {
               <View style={styles.infoCard}>
                 <Ticket color="#d946ef" size={20} />
                 <Text style={styles.infoLabel}>PRICE</Text>
-                <Text style={styles.infoValue}>
-                  {isFree ? 'Free' : `${event.currency} ${event.price}`}
-                </Text>
+                <Text style={styles.infoValue}>{isFree ? 'Free' : `${event.currency} ${event.price}`}</Text>
               </View>
               {parseInt(event.maxAttendees) > 0 && (
                 <View style={styles.infoCard}>
                   <Users color="#22d3ee" size={20} />
                   <Text style={styles.infoLabel}>CAPACITY</Text>
-                  <Text style={styles.infoValue}>
-                    {event.ticketsSold}/{event.maxAttendees}
-                  </Text>
+                  <Text style={styles.infoValue}>{event.ticketsSold}/{event.maxAttendees}</Text>
                 </View>
               )}
             </View>
@@ -168,13 +224,35 @@ export default function EventDetailScreen() {
               </View>
             ) : null}
 
+            {/* #19: Ticket Tiers */}
+            {hasTicketTiers && (
+              <View style={styles.tiersSection}>
+                <Text style={styles.sectionTitle}>TICKET TIERS</Text>
+                {event.ticketTiers.map((tier: any, idx: number) => (
+                  <TouchableOpacity
+                    key={idx}
+                    style={[styles.tierCard, passType === (tier.name || tier.tierName) && styles.tierCardActive]}
+                    activeOpacity={0.7}
+                    onPress={() => setPassType(tier.name || tier.tierName || 'General')}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.tierName}>{tier.name || tier.tierName || `Tier ${idx + 1}`}</Text>
+                      {tier.services && <Text style={styles.tierServices}>{tier.services}</Text>}
+                    </View>
+                    <Text style={styles.tierPrice}>
+                      {parseFloat(tier.price || 0) > 0 ? `${event.currency} ${tier.price}` : 'Free'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
             {/* Book Button */}
             {event.canBook && (
-              <TouchableOpacity activeOpacity={0.8} style={{ marginTop: 20 }}>
+              <TouchableOpacity activeOpacity={0.8} style={{ marginTop: 20 }} onPress={() => setBookModalVisible(true)}>
                 <LinearGradient
                   colors={['#ec4899', '#9333ea', '#22d3ee']}
-                  start={{ x: 0, y: 0.5 }}
-                  end={{ x: 1, y: 0.5 }}
+                  start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }}
                   style={styles.bookBtn}
                 >
                   <Text style={styles.bookBtnText}>
@@ -185,6 +263,71 @@ export default function EventDetailScreen() {
             )}
           </View>
         </ScrollView>
+
+        {/* Booking Modal */}
+        <Modal visible={bookModalVisible} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Book Tickets</Text>
+                <TouchableOpacity onPress={() => setBookModalVisible(false)}>
+                  <Text style={styles.modalCloseText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Pass Type Selection — use tiers if available */}
+              <View style={styles.modalField}>
+                <Text style={styles.modalLabel}>Pass Type</Text>
+                <View style={styles.passTypeContainer}>
+                  {hasTicketTiers ? (
+                    event.ticketTiers.map((tier: any, idx: number) => {
+                      const name = tier.name || tier.tierName || `Tier ${idx + 1}`;
+                      return (
+                        <TouchableOpacity
+                          key={idx}
+                          style={[styles.passTypeBtn, passType === name && styles.passTypeActiveBtn]}
+                          onPress={() => setPassType(name)}
+                        >
+                          <Text style={[styles.passTypeText, passType === name && styles.passTypeActiveText]}>{name}</Text>
+                          {parseFloat(tier.price || 0) > 0 && (
+                            <Text style={styles.passPriceText}>{event.currency} {tier.price}</Text>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })
+                  ) : (
+                    ['General', 'VIP', 'Backstage'].map((type) => (
+                      <TouchableOpacity
+                        key={type}
+                        style={[styles.passTypeBtn, passType === type && styles.passTypeActiveBtn]}
+                        onPress={() => setPassType(type)}
+                      >
+                        <Text style={[styles.passTypeText, passType === type && styles.passTypeActiveText]}>{type}</Text>
+                      </TouchableOpacity>
+                    ))
+                  )}
+                </View>
+              </View>
+
+              <View style={styles.modalField}>
+                <Text style={styles.modalLabel}>Quantity</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={quantity}
+                  onChangeText={setQuantity}
+                  keyboardType="number-pad"
+                  placeholderTextColor="#64748b"
+                />
+              </View>
+
+              <TouchableOpacity onPress={handleBookTicket} disabled={bookingLoading} activeOpacity={0.8}>
+                <LinearGradient colors={['#7c3aed', '#d946ef']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.modalBtn}>
+                  {bookingLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalBtnText}>Confirm Booking</Text>}
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
     </SafeAreaView>
   );
@@ -210,7 +353,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
     borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-
   scrollContent: { paddingBottom: 80 },
 
   coverContainer: { width: '100%', height: width * 0.8, position: 'relative' },
@@ -225,8 +367,18 @@ const styles = StyleSheet.create({
   },
   coverBadgeText: { fontFamily: 'Outfit_800ExtraBold', color: '#d946ef', fontSize: 10, letterSpacing: 1 },
 
-  content: { paddingHorizontal: 20, paddingTop: 4 },
+  // Media gallery nav
+  mediaNav: {
+    position: 'absolute', bottom: 50, left: 0, right: 0,
+    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 16,
+  },
+  mediaNavBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center',
+  },
+  mediaCounter: { fontFamily: 'Sora_700Bold', fontSize: 12, color: '#fff' },
 
+  content: { paddingHorizontal: 20, paddingTop: 4 },
   eventTitle: { fontFamily: 'Syne_800ExtraBold', fontSize: 28, color: '#f8f9ff', lineHeight: 36, marginBottom: 16 },
 
   hostRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 },
@@ -264,6 +416,49 @@ const styles = StyleSheet.create({
   sectionTitle: { fontFamily: 'Outfit_800ExtraBold', fontSize: 10, color: '#9ca3af', letterSpacing: 2, marginBottom: 10 },
   descText: { fontFamily: 'Sora_400Regular', fontSize: 15, color: '#cbd5e1', lineHeight: 24 },
 
+  // Ticket Tiers
+  tiersSection: { marginBottom: 10 },
+  tierCard: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: 'rgba(30, 41, 59, 0.4)',
+    borderRadius: 14, padding: 16, marginBottom: 8,
+    borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  tierCardActive: { borderColor: '#7c3aed', backgroundColor: 'rgba(124, 58, 237, 0.1)' },
+  tierName: { fontFamily: 'Sora_700Bold', fontSize: 14, color: '#f8f9ff' },
+  tierServices: { fontFamily: 'Sora_400Regular', fontSize: 11, color: '#94a3b8', marginTop: 4 },
+  tierPrice: { fontFamily: 'Sora_800ExtraBold', fontSize: 14, color: '#d946ef' },
+
   bookBtn: { padding: 16, borderRadius: 14, alignItems: 'center' },
   bookBtnText: { fontFamily: 'Sora_800ExtraBold', color: '#fff', fontSize: 15, letterSpacing: 0.5 },
+
+  // Modal styles
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.7)', justifyContent: 'flex-end' },
+  modalContent: {
+    backgroundColor: '#0f172a',
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 24, paddingBottom: 40,
+    borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { fontFamily: 'Syne_800ExtraBold', fontSize: 20, color: '#f8f9ff' },
+  modalCloseText: { fontFamily: 'Sora_600SemiBold', fontSize: 14, color: '#fca5a5' },
+  modalField: { marginBottom: 16 },
+  modalLabel: { fontFamily: 'Sora_600SemiBold', fontSize: 13, color: '#f8f9ff', marginBottom: 10 },
+  passTypeContainer: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
+  passTypeBtn: {
+    flex: 1, minWidth: 80, paddingVertical: 10, borderRadius: 10,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', alignItems: 'center',
+  },
+  passTypeActiveBtn: { backgroundColor: 'rgba(124, 58, 237, 0.2)', borderColor: '#7c3aed' },
+  passTypeText: { fontFamily: 'Sora_600SemiBold', color: '#94a3b8', fontSize: 12 },
+  passTypeActiveText: { color: '#d946ef' },
+  passPriceText: { fontFamily: 'Sora_400Regular', fontSize: 10, color: '#64748b', marginTop: 2 },
+  modalInput: {
+    borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.16)', borderRadius: 12,
+    padding: 14, fontSize: 15, backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    color: '#f8fafc', fontFamily: 'Sora_400Regular',
+  },
+  modalBtn: { padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 10 },
+  modalBtnText: { fontFamily: 'Sora_700Bold', color: '#fff', fontSize: 16 },
 });

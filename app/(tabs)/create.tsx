@@ -1,17 +1,22 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Camera, Zap, Sparkles, LayoutGrid, User, MapPin, Calendar, Clock, Ticket, Smile, Banknote, ClipboardList, Image as ImageIcon, Navigation } from 'lucide-react-native';
+import { Camera, Zap, Sparkles, LayoutGrid, User, MapPin, Calendar, Clock, Ticket, Smile, Banknote, ClipboardList, Image as ImageIcon, Navigation, Hash, Users, X, Shirt, Check } from 'lucide-react-native';
 import DatePickerModal from '@/components/ui/date-picker';
 import TimePickerModal from '@/components/ui/time-picker';
 import CategoryPicker from '@/components/ui/category-picker';
 import ImagePickerButton from '@/components/ui/image-picker-button';
+import SwipeToAction from '@/components/ui/swipe-to-action';
+import EventPreviewCard from '@/components/ui/event-preview-card';
+import QrSuccessModal from '@/components/ui/qr-success-modal';
+import MapPickerModal from '@/components/ui/map-picker-modal';
 import { eventApi, EVENT_CATEGORIES } from '../../services/api';
 
 export default function CreateScreen() {
   const [activeTab, setActiveTab] = useState<'post' | 'event'>('post');
+  const [eventStep, setEventStep] = useState(1);
 
   // Post State
   const [caption, setCaption] = useState('');
@@ -26,6 +31,7 @@ export default function CreateScreen() {
   const [location, setLocation] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
+  const [endTime, setEndTime] = useState('');
   const [eventCategory, setEventCategory] = useState('house party');
   const [ticketType, setTicketType] = useState('Free');
   const [price, setPrice] = useState('');
@@ -33,13 +39,33 @@ export default function CreateScreen() {
   const [loadingEvent, setLoadingEvent] = useState(false);
   const [startLabel, setStartLabel] = useState('');
   const [eventCoverImages, setEventCoverImages] = useState<string[]>([]);
+  
+  // New Complex Fields
+  const [services, setServices] = useState<string[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
+  const [hasDressCode, setHasDressCode] = useState(false);
+  const [dressCode, setDressCode] = useState('');
+  const [hasPromoCode, setHasPromoCode] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [collaborators, setCollaborators] = useState('');
+  
+  // Post-publish Modal
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [generatedQR, setGeneratedQR] = useState('');
+
+  // Location Picker State
+  const [showMapPicker, setShowMapPicker] = useState(false);
 
   // Coordinates (defaults to Delhi - will be replaced by location picker)
-  const [latitude, setLatitude] = useState(28.7041);
-  const [longitude, setLongitude] = useState(77.1025);
+  const [latitude, setLatitude] = useState(28.6139);
+  const [longitude, setLongitude] = useState(77.2090);
 
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+
+  const PREDEFINED_SERVICES = ['Food', 'Alcohol', 'Valet', 'Security', 'VIP Area', 'Hookah'];
 
   const handleCreatePost = () => {
     if (!caption) return Alert.alert('Error', 'Please write a caption');
@@ -84,7 +110,12 @@ export default function CreateScreen() {
       });
 
       const res = await eventApi.create(formData);
-      Alert.alert('Success', res.data.message || 'Event published!');
+      
+      // Assume the backend returns the event ID in res.data.id or similar.
+      // We will generate a QR link for tickets or share.
+      const eId = res.data?.id || 'new';
+      setGeneratedQR(`https://happnix.com/events/${eId}`);
+      setShowQrModal(true);
 
       // Reset form
       setTitle('');
@@ -105,35 +136,8 @@ export default function CreateScreen() {
     }
   };
 
-  const handleUseCurrentLocation = async () => {
-    try {
-      const Location = require('expo-location');
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is needed to auto-fill your location.');
-        return;
-      }
-      const loc = await Location.getCurrentPositionAsync({});
-      setLatitude(loc.coords.latitude);
-      setLongitude(loc.coords.longitude);
-
-      // Try reverse geocoding
-      try {
-        const [address] = await Location.reverseGeocodeAsync({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-        });
-        if (address) {
-          const name = [address.name, address.district, address.city].filter(Boolean).join(', ');
-          setLocation(name || `${loc.coords.latitude.toFixed(4)}, ${loc.coords.longitude.toFixed(4)}`);
-        }
-      } catch {
-        setLocation(`${loc.coords.latitude.toFixed(4)}, ${loc.coords.longitude.toFixed(4)}`);
-      }
-      Alert.alert('Location Set', 'Current location captured.');
-    } catch (e) {
-      Alert.alert('Error', 'expo-location is not available. Please enter location manually.');
-    }
+  const handleUseCurrentLocation = () => {
+    setShowMapPicker(true);
   };
 
   return (
@@ -198,24 +202,21 @@ export default function CreateScreen() {
                   <Text style={styles.linkHelperTxt}>Choose one of your hosted events to turn this into a highlight.</Text>
                 </View>
 
-                <TouchableOpacity onPress={handleCreatePost} disabled={loadingPost} style={styles.submitSwipePanel}>
-                  {loadingPost ? <ActivityIndicator color="#fff" /> : (
-                      <>
-                        <Text style={styles.swipePanelText}>PUBLISH POST</Text>
-                        <View style={styles.swipePanelIcon}>
-                           <Text style={{color: '#fff', fontSize: 16, fontWeight: 'bold'}}>»</Text>
-                        </View>
-                      </>
-                  )}
-                </TouchableOpacity>
+                <SwipeToAction 
+                  onSwipeRight={handleCreatePost} 
+                  loading={loadingPost} 
+                  rightLabel="PUBLISH POST" 
+                />
 
               </View>
             ) : (
               <View style={styles.formSection}>
 
-                <View style={styles.stepHeaderRow}>
-                   <Text style={styles.stepHeaderTitle}>EVENT BUILDER</Text>
-                </View>
+                {eventStep === 1 ? (
+                  <>
+                    <View style={styles.stepHeaderRow}>
+                       <Text style={styles.stepHeaderTitle}>EVENT BUILDER</Text>
+                    </View>
 
                 <View style={styles.inputNeonWrap}>
                    <Zap style={styles.neonIconAbs} color="#22d3ee" size={16} />
@@ -280,7 +281,6 @@ export default function CreateScreen() {
                    </View>
                 </View>
 
-                {/* Location with "Use Current" button */}
                 <View style={styles.inputNeonWrap}>
                    <MapPin style={styles.neonIconAbs} color="#d946ef" size={16} />
                    <TextInput
@@ -306,13 +306,129 @@ export default function CreateScreen() {
                         <Text style={{ color: date ? '#fff' : '#9ca3af', fontFamily: 'Sora_400Regular' }}>{date || "Date"}</Text>
                       </View>
                    </TouchableOpacity>
+                   <View style={{ flex: 1 }} />
+                </View>
+
+                <View style={styles.gridRow}>
                    <TouchableOpacity onPress={() => setShowTimePicker(true)} activeOpacity={0.8} style={[styles.inputNeonWrap, { flex: 1 }]}>
                       <Clock style={styles.neonIconAbs} color="#22d3ee" size={16} />
                       <View style={styles.inputNeonPad}>
                         <Text style={{ color: time ? '#fff' : '#9ca3af', fontFamily: 'Sora_400Regular' }}>{time || "Start time"}</Text>
                       </View>
                    </TouchableOpacity>
+                   <TouchableOpacity onPress={() => setShowEndTimePicker(true)} activeOpacity={0.8} style={[styles.inputNeonWrap, { flex: 1 }]}>
+                      <Clock style={styles.neonIconAbs} color="#d946ef" size={16} />
+                      <View style={styles.inputNeonPad}>
+                        <Text style={{ color: endTime ? '#fff' : '#9ca3af', fontFamily: 'Sora_400Regular' }}>{endTime || "End time"}</Text>
+                      </View>
+                   </TouchableOpacity>
                 </View>
+
+                {/* Tags */}
+                <View style={styles.inputNeonWrap}>
+                   <Hash style={styles.neonIconAbs} color="#22d3ee" size={16} />
+                   <TextInput
+                      style={[styles.inputNeonPad, { paddingBottom: tags.length > 0 ? 44 : 14 }]}
+                      placeholder="Add tags (type and press space)"
+                      value={tagInput}
+                      onChangeText={(txt) => {
+                        if (txt.endsWith(' ') || txt.endsWith(',')) {
+                          const newTag = txt.replace(/[\s,]/g, '').trim();
+                          if (newTag && !tags.includes(newTag)) {
+                            setTags([...tags, newTag]);
+                          }
+                          setTagInput('');
+                        } else {
+                          setTagInput(txt);
+                        }
+                      }}
+                      placeholderTextColor="#9ca3af"
+                   />
+                   {tags.length > 0 && (
+                     <ScrollView horizontal style={styles.tagsOverlay} showsHorizontalScrollIndicator={false}>
+                       {tags.map((t, idx) => (
+                         <View key={idx} style={styles.tagPill}>
+                           <Text style={styles.tagPillText}>#{t}</Text>
+                           <TouchableOpacity onPress={() => setTags(tags.filter(tg => tg !== t))}>
+                             <X size={12} color="#22d3ee" />
+                           </TouchableOpacity>
+                         </View>
+                       ))}
+                     </ScrollView>
+                   )}
+                </View>
+
+                {/* Collaborators */}
+                <View style={styles.inputNeonWrap}>
+                   <Users style={styles.neonIconAbs} color="#d946ef" size={16} />
+                   <TextInput
+                      style={styles.inputNeonPad}
+                      placeholder="Collaborators (e.g. @dj_snake)"
+                      value={collaborators}
+                      onChangeText={setCollaborators}
+                      placeholderTextColor="#9ca3af"
+                   />
+                </View>
+
+                {/* Amenities / Services */}
+                <View style={{ marginTop: 8 }}>
+                   <Text style={[styles.stepHeaderTitle, { marginBottom: 8 }]}>AMENITIES & SERVICES</Text>
+                   <View style={styles.servicesGrid}>
+                     {PREDEFINED_SERVICES.map(svc => {
+                       const active = services.includes(svc);
+                       return (
+                         <TouchableOpacity
+                           key={svc}
+                           onPress={() => {
+                             if (active) setServices(services.filter(s => s !== svc));
+                             else setServices([...services, svc]);
+                           }}
+                           style={[styles.servicePill, active && styles.servicePillActive]}
+                         >
+                           {active && <Check size={12} color="#fff" style={{marginRight: 4}} />}
+                           <Text style={[styles.servicePillText, active && styles.servicePillTextActive]}>{svc}</Text>
+                         </TouchableOpacity>
+                       )
+                     })}
+                   </View>
+                </View>
+
+                {/* Dress Code & Promo Code */}
+                <View style={styles.toggleRow}>
+                   <View style={styles.toggleLabelWrap}>
+                     <Shirt color="#22d3ee" size={18} />
+                     <Text style={styles.toggleLabel}>Dress Code Required</Text>
+                   </View>
+                   <Switch
+                     value={hasDressCode}
+                     onValueChange={setHasDressCode}
+                     trackColor={{ false: 'rgba(255,255,255,0.1)', true: 'rgba(34, 211, 238, 0.5)' }}
+                     thumbColor={hasDressCode ? '#22d3ee' : '#cbd5e1'}
+                   />
+                </View>
+                {hasDressCode && (
+                  <View style={styles.inputNeonWrap}>
+                     <TextInput style={styles.inputNeonPad} placeholder="e.g. Smart Casual, Techno Black..." value={dressCode} onChangeText={setDressCode} placeholderTextColor="#9ca3af"/>
+                  </View>
+                )}
+
+                <View style={styles.toggleRow}>
+                   <View style={styles.toggleLabelWrap}>
+                     <Ticket color="#d946ef" size={18} />
+                     <Text style={styles.toggleLabel}>Allow Promo Codes</Text>
+                   </View>
+                   <Switch
+                     value={hasPromoCode}
+                     onValueChange={setHasPromoCode}
+                     trackColor={{ false: 'rgba(255,255,255,0.1)', true: 'rgba(217, 70, 239, 0.5)' }}
+                     thumbColor={hasPromoCode ? '#d946ef' : '#cbd5e1'}
+                   />
+                </View>
+                {hasPromoCode && (
+                  <View style={styles.inputNeonWrap}>
+                     <TextInput style={styles.inputNeonPad} placeholder="Enter Code (e.g. VIBE20)" value={promoCode} onChangeText={setPromoCode} placeholderTextColor="#9ca3af"/>
+                  </View>
+                )}
 
                 {/* Max Attendees */}
                 <View style={styles.inputNeonWrap}>
@@ -360,12 +476,40 @@ export default function CreateScreen() {
                     />
                   </View>
                 )}
+                </>
+                ) : (
+                  <>
+                    <View style={styles.stepHeaderRow}>
+                       <Text style={styles.stepHeaderTitle}>PREVIEW VIBE</Text>
+                    </View>
+                    <EventPreviewCard 
+                      title={title} bio={bio} highlights={highlights} age={age} location={location}
+                      date={date} time={time} endTime={endTime} eventCategory={eventCategory} 
+                      ticketType={ticketType} price={price} maxAttendees={maxAttendees}
+                      eventCoverImages={eventCoverImages} services={services} tags={tags}
+                      dressCode={dressCode} promoCode={promoCode} collaborators={collaborators}
+                    />
+                  </>
+                )}
 
-                <TouchableOpacity onPress={handleCreateEvent} disabled={loadingEvent} activeOpacity={0.8} style={{marginTop: 16}}>
-                  <LinearGradient colors={['#ec4899', '#9333ea', '#22d3ee']} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.btnPrimary}>
-                    {loadingEvent ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Publish Event</Text>}
-                  </LinearGradient>
-                </TouchableOpacity>
+                <View style={{ marginTop: 24 }}>
+                  {eventStep === 1 ? (
+                    <SwipeToAction 
+                      onSwipeRight={() => setEventStep(2)} 
+                      onSwipeLeft={() => setActiveTab('post')}
+                      rightLabel="NEXT STEP" 
+                      leftLabel="BACK"
+                    />
+                  ) : (
+                    <SwipeToAction 
+                      onSwipeRight={handleCreateEvent} 
+                      onSwipeLeft={() => setEventStep(1)}
+                      loading={loadingEvent} 
+                      rightLabel="PUBLISH VIBE" 
+                      leftLabel="EDIT"
+                    />
+                  )}
+                </View>
 
               </View>
             )}
@@ -395,10 +539,8 @@ export default function CreateScreen() {
           onSave={(t) => {
             const timeStr = `${t.hour}:${t.minute.toString().padStart(2, '0')} ${t.period}`;
             setTime(timeStr);
-            // Update startLabel with time
             const datePart = startLabel.split(' ')[0] || '';
             if (datePart) {
-              // Convert 12h to 24h for backend
               let h = t.hour;
               if (t.period === 'PM' && h !== 12) h += 12;
               if (t.period === 'AM' && h === 12) h = 0;
@@ -407,6 +549,40 @@ export default function CreateScreen() {
             setShowTimePicker(false);
           }}
         />
+        <TimePickerModal
+          visible={showEndTimePicker}
+          onClose={() => setShowEndTimePicker(false)}
+          onSave={(t) => {
+            const timeStr = `${t.hour}:${t.minute.toString().padStart(2, '0')} ${t.period}`;
+            setEndTime(timeStr);
+            setShowEndTimePicker(false);
+          }}
+        />
+        
+        {/* The Success Modal */}
+        <QrSuccessModal 
+          visible={showQrModal} 
+          qrValue={generatedQR} 
+          onClose={() => {
+            setShowQrModal(false);
+            setEventStep(1);
+            router.push('/(tabs)');
+          }} 
+        />
+        
+        {/* Map Location Picker */}
+        <MapPickerModal
+          visible={showMapPicker}
+          initialLat={latitude}
+          initialLng={longitude}
+          onClose={() => setShowMapPicker(false)}
+          onSelectLocation={(lat, lng, address) => {
+            setLatitude(lat);
+            setLongitude(lng);
+            setLocation(address);
+          }}
+        />
+        
       </View>
     </SafeAreaView>
   );
@@ -466,6 +642,20 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(34, 211, 238, 0.15)',
     justifyContent: 'center', alignItems: 'center',
   },
+
+  tagsOverlay: { position: 'absolute', bottom: 10, left: 44, right: 10 },
+  tagPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(34, 211, 238, 0.1)', borderWidth: 1, borderColor: 'rgba(34, 211, 238, 0.3)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginRight: 6 },
+  tagPillText: { fontFamily: 'Sora_600SemiBold', fontSize: 11, color: '#22d3ee', marginRight: 4 },
+
+  servicesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  servicePill: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
+  servicePillActive: { backgroundColor: 'rgba(217, 70, 239, 0.8)', borderColor: '#d946ef' },
+  servicePillText: { fontFamily: 'Sora_600SemiBold', fontSize: 12, color: '#9ca3af' },
+  servicePillTextActive: { color: '#fff' },
+
+  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(30, 41, 59, 0.3)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  toggleLabelWrap: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  toggleLabel: { fontFamily: 'Sora_600SemiBold', fontSize: 14, color: '#fff' },
 
   ticketGridRow: { flexDirection: 'row', gap: 12 },
   ticketBox: { flex: 1, backgroundColor: 'rgba(30, 41, 59, 0.5)', borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },

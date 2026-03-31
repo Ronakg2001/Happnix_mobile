@@ -75,6 +75,20 @@ export const profileApi = {
 
   verifyAadhaarOtp: (otp: string) =>
     api.post('/api/auth/aadhaar/verify-otp', { otp }),
+
+  getPrivacy: () => api.get('/api/profile/privacy'),
+
+  setPrivacy: (isPrivate: boolean) =>
+    api.post('/api/profile/privacy', { isPrivate }),
+
+  getFollowRequests: () => api.get('/api/profile/follow-requests'),
+
+  handleFollowRequest: (requesterUserId: number, action: 'approve' | 'deny') =>
+    api.post('/api/profile/follow-requests', { requesterUserId, action }),
+
+  getFollowers: () => api.get('/api/profile/followers'),
+
+  getFollowing: () => api.get('/api/profile/following'),
 };
 
 // ── Event APIs ─────────────────────────────────────────────
@@ -94,11 +108,134 @@ export const eventApi = {
     api.delete(`/api/events/${eventId}`),
 };
 
+// ── Ticket APIs ────────────────────────────────────────────
+
+export const ticketApi = {
+  getAll: () => api.get('/api/tickets'),
+
+  book: (eventId: number | string, passType: string, quantity: number) =>
+    api.post('/api/tickets/book', { event_id: eventId, pass_type: passType, quantity }),
+
+  pay: (ticketId: number | string, paymentMethod: string) =>
+    api.post(`/api/tickets/${ticketId}/pay`, { payment_method: paymentMethod }),
+
+  updateGroup: (ticketId: number | string, groupInfo: any) =>
+    api.post(`/api/tickets/${ticketId}/group`, groupInfo),
+
+  cancel: (ticketId: number | string) =>
+    api.post(`/api/tickets/${ticketId}/cancel`),
+
+  archive: (ticketId: number | string) =>
+    api.post(`/api/tickets/${ticketId}/archive`),
+
+  delete: (ticketId: number | string) =>
+    api.delete(`/api/tickets/${ticketId}/delete`),
+};
+
 // ── User Search API ────────────────────────────────────────
 
 export const userApi = {
   search: (query: string, limit = 20) =>
     api.get('/api/users/search', { params: { q: query, limit } }),
+
+  publicProfile: (userId: number | string) =>
+    api.get(`/api/users/${userId}/profile`),
+
+  follow: (targetUserId: number | string) =>
+    api.post('/api/users/follow', { target_user_id: targetUserId }),
+
+  unfollow: (targetUserId: number | string) =>
+    api.post('/api/users/unfollow', { target_user_id: targetUserId }),
+};
+
+// ── Notification APIs ──────────────────────────────────────
+
+export const notificationApi = {
+  getAll: () => api.get('/api/notifications'),
+  markRead: () => api.post('/api/notifications'),
+};
+
+// ── Messaging APIs ─────────────────────────────────────────
+
+export const messagingApi = {
+  getConversations: () => api.get('/api/messages/conversations'),
+
+  startConversation: (targetUserId: number | string) =>
+    api.post('/api/messages/conversations/start', { target_user_id: targetUserId }),
+
+  getMessages: (conversationId: number | string) =>
+    api.get(`/api/messages/conversations/${conversationId}/messages`),
+
+  markRead: (conversationId: number | string) =>
+    api.post(`/api/messages/conversations/${conversationId}/read`),
+
+  editMessage: (messageId: number | string, content: string) =>
+    api.post(`/api/messages/messages/${messageId}/edit`, { content }),
+
+  forwardMessage: (messageId: number | string, targetUserId: number | string) =>
+    api.post(`/api/messages/messages/${messageId}/forward`, { target_user_id: targetUserId }),
+
+  deleteMessage: (messageId: number | string) =>
+    api.post(`/api/messages/messages/${messageId}/delete`),
+
+  unsendMessage: (messageId: number | string) =>
+    api.post(`/api/messages/messages/${messageId}/unsend`),
+
+  sendMessage: (conversationId: number | string, body: string, repliedToId?: number | string) =>
+    api.post(`/api/messages/conversations/${conversationId}/messages`, {
+      body,
+      ...(repliedToId ? { repliedToId } : {}),
+    }),
+
+  // #11: Send message with file/image/voice attachments (multipart)
+  sendMessageWithAttachments: (
+    conversationId: number | string,
+    body: string,
+    files: { uri: string; name: string; type: string }[],
+    attachmentMeta?: { durationSeconds?: number | null }[],
+  ) => {
+    const formData = new FormData();
+    formData.append('body', body);
+    files.forEach((file) => {
+      formData.append('attachments', {
+        uri: file.uri,
+        name: file.name,
+        type: file.type,
+      } as any);
+    });
+    if (attachmentMeta) {
+      formData.append('attachmentMeta', JSON.stringify(attachmentMeta));
+    }
+    return api.post(
+      `/api/messages/conversations/${conversationId}/messages`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+  },
+
+  clearConversation: (conversationId: number | string) =>
+    api.post(`/api/messages/conversations/${conversationId}/clear`),
+
+  deleteConversation: (conversationId: number | string) =>
+    api.delete(`/api/messages/conversations/${conversationId}`),
+};
+
+// ── Group Ticket APIs (#20) ─────────────────────────────────
+
+export const groupTicketApi = {
+  /** Get group members for a ticket */
+  getGroup: (ticketId: number | string) =>
+    api.get(`/api/tickets/${ticketId}/group`),
+
+  /** Add/remove members, update payer */
+  updateGroup: (
+    ticketId: number | string,
+    data: {
+      inviteeUserIds?: number[];
+      removeUserIds?: number[];
+      paidForUserIds?: number[];
+    },
+  ) => api.post(`/api/tickets/${ticketId}/group`, data),
 };
 
 // ── Event Categories (from manifest) ───────────────────────

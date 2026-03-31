@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Image,
-  ScrollView, Alert, ActivityIndicator,
+  ScrollView, Alert, ActivityIndicator, Dimensions
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, X, Plus } from 'lucide-react-native';
@@ -155,45 +155,63 @@ export default function ImagePickerButton({
     );
   }
 
-  // ─── Full Mode (Multi-image grid) ────────────────────
+  // ─── Full Mode (Multi-image Carousel) ────────────────────
+  const { width } = Dimensions.get('window');
+  const CAROUSEL_ITEM_WIDTH = width - 40; // Assuming 20px padding on left/right
+
   return (
     <View style={styles.container}>
-      {/* Selected Images Preview */}
+      {/* Selected Images Carousel Preview */}
       {selectedImages.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.previewRow}
-        >
-          {selectedImages.map((uri, index) => (
-            <View key={`${uri}-${index}`} style={styles.previewItem}>
-              <Image source={{ uri }} style={styles.previewImage} />
-              <TouchableOpacity
-                style={styles.removeBtn}
-                onPress={() => removeImage(index)}
-                activeOpacity={0.7}
-              >
-                <X color="#fff" size={12} />
-              </TouchableOpacity>
-              {index === 0 && (
-                <View style={styles.coverBadge}>
-                  <Text style={styles.coverBadgeText}>COVER</Text>
-                </View>
-              )}
-            </View>
-          ))}
+        <View style={styles.carouselWrap}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            pagingEnabled
+            snapToInterval={CAROUSEL_ITEM_WIDTH}
+            decelerationRate="fast"
+            snapToAlignment="center"
+          >
+            {selectedImages.map((uri, index) => (
+              <View key={`${uri}-${index}`} style={[styles.carouselItem, { width: CAROUSEL_ITEM_WIDTH }]}>
+                <Image source={{ uri }} style={styles.carouselImage} resizeMode="cover" />
+                
+                <TouchableOpacity
+                  style={styles.carouselRemoveBtn}
+                  onPress={() => removeImage(index)}
+                  activeOpacity={0.7}
+                >
+                  <X color="#fff" size={16} />
+                </TouchableOpacity>
 
-          {/* Add More Button (Inline) */}
-          {multiple && selectedImages.length < maxCount && (
-            <TouchableOpacity
-              style={styles.addMoreBtn}
-              onPress={showOptions}
-              activeOpacity={0.7}
-            >
-              <Plus color="#64748b" size={24} />
-            </TouchableOpacity>
-          )}
-        </ScrollView>
+                {index === 0 ? (
+                  <View style={styles.carouselBadge}>
+                    <Text style={styles.carouselBadgeText}>COVER</Text>
+                  </View>
+                ) : (
+                  <View style={styles.carouselCounterBadge}>
+                    <Text style={styles.carouselBadgeText}>{index + 1} / {selectedImages.length}</Text>
+                  </View>
+                )}
+              </View>
+            ))}
+
+            {/* Add More Slide */}
+            {multiple && selectedImages.length < maxCount && (
+              <View style={[styles.carouselItem, { width: CAROUSEL_ITEM_WIDTH }]}>
+                <TouchableOpacity
+                  style={styles.carouselAddSlide}
+                  onPress={showOptions}
+                  activeOpacity={0.7}
+                >
+                  <Plus color="#d946ef" size={48} />
+                  <Text style={styles.carouselAddText}>Add More</Text>
+                  <Text style={styles.uploadHint}>{maxCount - selectedImages.length} slots left</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </ScrollView>
+        </View>
       )}
 
       {/* Upload Area (when no images selected or single mode) */}
@@ -263,35 +281,62 @@ const styles = StyleSheet.create({
     color: '#64748b',
   },
 
-  // Preview row
-  previewRow: { gap: 10, paddingVertical: 4 },
-  previewItem: { position: 'relative', width: 100, height: 100, borderRadius: 14, overflow: 'hidden' },
-  previewImage: { width: '100%', height: '100%', borderRadius: 14 },
-  removeBtn: {
-    position: 'absolute', top: 6, right: 6,
-    width: 22, height: 22, borderRadius: 11,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  // Carousel row
+  carouselWrap: {
+    height: 280,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  carouselItem: {
+    height: '100%',
+    paddingRight: 10, // gap between items
+  },
+  carouselImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  carouselRemoveBtn: {
+    position: 'absolute', top: 12, right: 22,
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center', alignItems: 'center',
     borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.2)',
+    backdropFilter: 'blur(4px)',
   },
-  coverBadge: {
-    position: 'absolute', bottom: 6, left: 6,
+  carouselBadge: {
+    position: 'absolute', bottom: 12, left: 12,
     backgroundColor: 'rgba(217, 70, 239, 0.85)',
-    paddingHorizontal: 6, paddingVertical: 2,
-    borderRadius: 6,
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 8,
   },
-  coverBadgeText: {
+  carouselCounterBadge: {
+    position: 'absolute', bottom: 12, left: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+  },
+  carouselBadgeText: {
     fontFamily: 'Outfit_800ExtraBold',
-    fontSize: 8,
+    fontSize: 10,
     color: '#fff',
     letterSpacing: 1,
   },
-  addMoreBtn: {
-    width: 100, height: 100, borderRadius: 14,
+  carouselAddSlide: {
+    width: '100%', height: '100%', borderRadius: 16,
     backgroundColor: 'rgba(30, 41, 59, 0.5)',
-    borderWidth: 1, borderStyle: 'dashed',
+    borderWidth: 2, borderStyle: 'dashed',
     borderColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center', alignItems: 'center',
+    gap: 8,
+  },
+  carouselAddText: {
+    fontFamily: 'Sora_600SemiBold',
+    fontSize: 14,
+    color: '#cbd5e1',
   },
   countText: {
     fontFamily: 'Sora_400Regular',

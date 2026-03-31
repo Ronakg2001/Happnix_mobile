@@ -61,24 +61,41 @@ export default function DiscoverScreen() {
     ? events.filter((e: any) => (e.eventCategory || '').toLowerCase() === selectedCategory)
     : events;
 
-  const renderUserItem = (user: any) => (
-    <TouchableOpacity key={user.username || user.sql_user_id} style={styles.userCard} activeOpacity={0.7}>
-      <View style={styles.userAvatar}>
-        {user.profile_picture_url ? (
-          <Image source={{ uri: user.profile_picture_url }} style={styles.userAvatarImg} />
-        ) : (
-          <Text style={styles.userAvatarText}>{(user.username || 'U').charAt(0).toUpperCase()}</Text>
-        )}
-      </View>
-      <View style={{ flex: 1 }}>
-        <View style={styles.userNameRow}>
-          <Text style={styles.userName} numberOfLines={1}>{user.username}</Text>
-          {user.gov_id_verified && <BadgeCheck color="#47e8ff" size={14} />}
+  const renderUserItem = (user: any) => {
+    let badge = '';
+    if (user.is_following) badge = 'Following';
+    else if (user.follow_request_pending) badge = 'Requested';
+    else if (user.follows_you) badge = 'Follows you';
+
+    return (
+      <TouchableOpacity
+        key={user.username || user.sql_user_id || user.id}
+        style={styles.userCard}
+        activeOpacity={0.7}
+        onPress={() => router.push({ pathname: `/profile/${user.id || user.sql_user_id}` as any })}
+      >
+        <View style={styles.userAvatar}>
+          {user.profile_picture_url ? (
+            <Image source={{ uri: user.profile_picture_url }} style={styles.userAvatarImg} />
+          ) : (
+            <Text style={styles.userAvatarText}>{(user.username || 'U').charAt(0).toUpperCase()}</Text>
+          )}
         </View>
-        {user.full_name ? <Text style={styles.userFullName} numberOfLines={1}>{user.full_name}</Text> : null}
-      </View>
-    </TouchableOpacity>
-  );
+        <View style={{ flex: 1 }}>
+          <View style={styles.userNameRow}>
+            <Text style={styles.userName} numberOfLines={1}>{user.username}</Text>
+            {user.gov_id_verified && <BadgeCheck color="#47e8ff" size={14} />}
+          </View>
+          {user.full_name ? <Text style={styles.userFullName} numberOfLines={1}>{user.full_name}</Text> : null}
+        </View>
+        {badge ? (
+          <View style={styles.followStateBadge}>
+            <Text style={styles.followStateBadgeText}>{badge}</Text>
+          </View>
+        ) : null}
+      </TouchableOpacity>
+    );
+  };
 
   const renderEventCard = (event: any) => (
     <TouchableOpacity
@@ -277,4 +294,7 @@ const styles = StyleSheet.create({
 
   emptySearch: { alignItems: 'center', paddingVertical: 30 },
   emptySearchText: { fontFamily: 'Sora_600SemiBold', color: '#64748b', fontSize: 14 },
+
+  followStateBadge: { backgroundColor: 'rgba(255,255,255,0.06)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  followStateBadgeText: { fontFamily: 'Sora_600SemiBold', fontSize: 10, color: '#94a3b8' },
 });
