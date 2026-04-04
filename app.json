@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Happnix_Mobile",
-    "slug": "Happnix_Mobile",
+    "slug": "happnixmobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -9,7 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ronakg1.happnixmobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -44,6 +48,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "e23b54e3-b774-4875-b0fb-38c11185dcd1"
+      }
+    },
+    "owner": "ronakg1"
   }
 }

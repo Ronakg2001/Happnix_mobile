@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ActivityIndicator, TouchableOpacity,
-  Alert, Image, ScrollView, SafeAreaView, Dimensions, TextInput, Modal, Switch
+  Alert, Image, ScrollView, Dimensions, TextInput, Modal, Switch
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { BadgeCheck, Shield, X, Edit3, Lock, ChevronRight, Calendar, Camera } from 'lucide-react-native';
 import { profileApi, authApi, eventApi } from '../../services/api';
+import { eventToParams } from '../../utils/navigation';
 import * as ImagePicker from 'expo-image-picker';
 
 const { width } = Dimensions.get('window');
@@ -316,7 +318,7 @@ export default function ProfileScreen() {
                     key={event.id}
                     style={styles.gridItem}
                     activeOpacity={0.8}
-                    onPress={() => router.push({ pathname: '/event-detail', params: { id: event.id?.toString() } })}
+                    onPress={() => router.push({ pathname: '/event-detail', params: eventToParams(event) })}
                   >
                     {event.imageUrl ? (
                       <Image source={{ uri: event.imageUrl }} style={styles.gridImage} />

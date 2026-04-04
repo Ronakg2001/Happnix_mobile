@@ -1,13 +1,16 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  SafeAreaView, Dimensions, ActivityIndicator, Image, Alert,
+  Dimensions, ActivityIndicator, Image, Alert,
   RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ticket, Calendar, MapPin, Trash2 } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { eventApi, ticketApi } from '../../services/api';
+import { eventToParams } from '../../utils/navigation';
+import PartyLoader from '../../components/ui/party-loader';
 
 const { width } = Dimensions.get('window');
 
@@ -127,7 +130,7 @@ export default function TicketsScreen() {
       key={event.id}
       style={styles.eventCard}
       activeOpacity={0.7}
-      onPress={() => router.push({ pathname: '/event-detail', params: event })}
+      onPress={() => router.push({ pathname: '/event-detail', params: eventToParams(event) })}
     >
       <View style={styles.eventImageWrap}>
         {event.imageUrl ? (
@@ -197,11 +200,16 @@ export default function TicketsScreen() {
           </View>
         </View>
 
+        {refreshing && (
+          <View style={{ position: 'absolute', top: 120, left: 0, right: 0, zIndex: 50, alignItems: 'center' }}>
+            <PartyLoader />
+          </View>
+        )}
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#47e8ff" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />
           }
         >
           {activeTab === 'tickets' ? (

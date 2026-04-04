@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList,
+  View, Text, StyleSheet, TouchableOpacity, FlatList,
   ActivityIndicator, TextInput, KeyboardAvoidingView, Platform, Alert,
   Image, Dimensions, Animated,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
 import {

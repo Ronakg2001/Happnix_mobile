@@ -1,15 +1,15 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import { API_BASE_URL } from '../constants/backend';
 
-// Adjust this depending on your setup
-// Use 10.0.2.2 for Android emulators to connect to localhost:8000
-const API_BASE_URL = 'http://192.168.29.135:8000';
+console.log('🔗 API Base URL:', API_BASE_URL);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
+    'Bypass-Tunnel-Reminder': 'true', // Required to bypass localtunnel security landing page
   },
 });
 

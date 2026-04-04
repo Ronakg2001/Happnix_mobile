@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Image,
+  View, Text, StyleSheet, TouchableOpacity, Image,
   ScrollView, ActivityIndicator, Dimensions, FlatList, Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
 import { BadgeCheck, ArrowLeft, UserPlus, UserCheck, Clock, Lock, MessageCircle, MapPin } from 'lucide-react-native';
 import { userApi, messagingApi } from '../../services/api';
+import { eventToParams } from '../../utils/navigation';
 
 const { width } = Dimensions.get('window');
 const GRID_SIZE = (width - 48 - 8) / 3;
@@ -238,7 +240,7 @@ export default function PublicProfileScreen() {
                       key={event.id || event.eventId}
                       style={styles.gridItem}
                       activeOpacity={0.8}
-                      onPress={() => router.push({ pathname: '/event-detail', params: { id: event.id?.toString() } })}
+                      onPress={() => router.push({ pathname: '/event-detail', params: eventToParams(event) })}
                     >
                       {event.imageUrl || event.image_url ? (
                         <Image source={{ uri: event.imageUrl || event.image_url }} style={styles.gridImage} />

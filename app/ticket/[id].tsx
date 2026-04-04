@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Image, Dimensions, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
 import { ArrowLeft, MapPin, Calendar, Clock, CreditCard, XCircle, Archive, Wallet, Users } from 'lucide-react-native';
+import QRCode from 'react-native-qrcode-svg';
 import { ticketApi } from '../../services/api';
 
 const { width } = Dimensions.get('window');
@@ -137,12 +139,7 @@ export default function TicketDetailScreen() {
               {/* QR Section */}
               <View style={styles.qrContainer}>
                 <View style={styles.qrBox}>
-                  <View style={styles.mockQr}>
-                     <View style={[styles.qrCorner, { top: 0, left: 0 }]} />
-                     <View style={[styles.qrCorner, { top: 0, right: 0 }]} />
-                     <View style={[styles.qrCorner, { bottom: 0, left: 0 }]} />
-                     <View style={styles.qrCenter} />
-                  </View>
+                  <QRCode value={`https://happnix.com/ticket/${ticket.id}/`} size={140} color="#000" backgroundColor="#fff" />
                 </View>
                 <Text style={styles.ticketIdText}>ID: {ticket.id}</Text>
                 <Text style={styles.scanHint}>Present this at the entrance</Text>

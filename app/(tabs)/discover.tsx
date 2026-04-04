@@ -1,12 +1,15 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, ScrollView, SafeAreaView,
-  Dimensions, TouchableOpacity, Image, FlatList, ActivityIndicator,
+  View, Text, TextInput, StyleSheet, ScrollView,
+  Dimensions, TouchableOpacity, Image, FlatList, ActivityIndicator, RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Search, BadgeCheck, MapPin, Calendar } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { userApi, eventApi, EVENT_CATEGORIES } from '../../services/api';
+import { eventToParams } from '../../utils/navigation';
+import PartyLoader from '../../components/ui/party-loader';
 
 const { width } = Dimensions.get('window');
 
@@ -18,9 +21,15 @@ export default function DiscoverScreen() {
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTimer, setSearchTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchNearbyEvents();
+  }, []);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchNearbyEvents().finally(() => setRefreshing(false));
   }, []);
 
   const fetchNearbyEvents = async () => {
@@ -102,7 +111,7 @@ export default function DiscoverScreen() {
       key={event.id}
       style={styles.eventCard}
       activeOpacity={0.7}
-      onPress={() => router.push({ pathname: '/event-detail', params: event })}
+      onPress={() => router.push({ pathname: '/event-detail', params: eventToParams(event) })}
     >
       <View style={styles.eventImageWrap}>
         {event.imageUrl ? (
@@ -157,7 +166,18 @@ export default function DiscoverScreen() {
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {refreshing && (
+          <View style={{ position: 'absolute', top: 120, left: 0, right: 0, zIndex: 50, alignItems: 'center' }}>
+            <PartyLoader />
+          </View>
+        )}
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />
+          }
+        >
           {/* User Search Results */}
           {users.length > 0 && (
             <View style={styles.section}>

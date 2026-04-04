@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, SafeAreaView, Dimensions, ScrollView } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Dimensions, ScrollView, RefreshControl } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MapPin, Sun, Heart, MessageCircle, Plus } from 'lucide-react-native';
 import { router } from 'expo-router';
@@ -19,9 +20,15 @@ export default function HomeScreen() {
   const [events, setEvents] = useState<any[]>([]);
   const [liveEvents, setLiveEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchAllData();
+  }, []);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchAllData().finally(() => setRefreshing(false));
   }, []);
 
   const fetchAllData = async () => {
@@ -155,9 +162,21 @@ export default function HomeScreen() {
             <PartyLoader />
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+          <>
+            {refreshing && (
+              <View style={{ position: 'absolute', top: 120, left: 0, right: 0, zIndex: 50, alignItems: 'center' }}>
+                <PartyLoader />
+              </View>
+            )}
+            <ScrollView 
+              contentContainerStyle={styles.listContent} 
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="transparent" colors={['transparent']} />
+              }
+            >
 
-            {/* Live Now — only show if there are live events */}
+              {/* Live Now — only show if there are live events */}
             {liveEvents.length > 0 && (
               <View style={styles.liveNowContainer}>
                 <View style={styles.liveNowHeaderRow}>
@@ -207,6 +226,7 @@ export default function HomeScreen() {
               </View>
             )}
           </ScrollView>
+          </>
         )}
       </View>
     </SafeAreaView>
